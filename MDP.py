@@ -26,11 +26,16 @@ class EpisodicContinuousMDP(ABC):
     def run_episode(self, policy):
         pass
 
+    @abstractmethod
+    def get_feature_ranges(self):
+        pass
+
 class MountainCar(EpisodicContinuousMDP):
-    def __init__(self, A=[-1,0,1], x_bounds=[-1.2,0.5]):
+    def __init__(self, A=[-1,0,1], x_bounds=[-1.2,0.6], v_bounds=[-0.07, 0.07]):
         self.s = self.initial_state()
         self.A = A
         self.x_lower, self.x_upper = x_bounds
+        self.v_lower, self.v_upper = v_bounds
     
     def reset(self):
         self.s = self.initial_state()
@@ -68,6 +73,9 @@ class MountainCar(EpisodicContinuousMDP):
 
         self.reset()
         return G
+
+    def get_feature_ranges(self):
+        return np.array([[self.x_lower,self.x_upper],[self.v_lower,self.v_upper]])
 
 
 # class InvertedPendulum(EpisodicContinuousMDP):
