@@ -1,7 +1,7 @@
 import numpy as np
 
 class TiledQ():
-    def __init__(self, A, ranges, num_tilings, bins, offsets):
+    def __init__(self, A, ranges, num_tilings, lr, bins, offsets):
         self.tilings = []
         for i in range(num_tilings):
             t = []
@@ -14,7 +14,7 @@ class TiledQ():
         self.A           = A
         self.state_sizes = [tuple(len(splits)+1 for splits in tiling) for tiling in self.tilings]
         self.q_tables    = [np.zeros((state_size+(len(self.A),))) for state_size in self.state_sizes]
-        pass
+        self.lr          = lr
 
     def tile_coding(self, feature):
         codings = []
@@ -24,6 +24,12 @@ class TiledQ():
                 coding.append(np.digitize(feature[i], t[i]))
             codings.append(coding)
         return np.array(codings)
+    
+    def update(self, s, a, G):
+        codings = self.tile_coding(s)
+        a_idx = self.A.index(a)
+        for coding, q_table in zip(codings, self.q_tables):
+            q_table[tuple(coding)+(a_idx,)] += self.lr * (G - q_table[tuple(coding)+(a_idx,)])
 
     def value(self, s, a=None):
         codings = self.tile_coding(s)
@@ -50,7 +56,7 @@ class ESGNStepSARSA():
 
         self.MDP = MDP
         self.A = self.MDP.A
-        self.q = TiledQ(self.MDP.A, self.MDP.get_feature_ranges(), D, bins, offsets)
+        self.q = TiledQ(self.MDP.A, self.MDP.get_feature_ranges(), D, alpha, bins, offsets)
         self.alpha = 0.5
         self.w = np.zeros(D)
         self.n = n
@@ -110,6 +116,8 @@ class ESGNStepSARSA():
                         if t + self.n < T:
                             G += self.gamma**self.n * self.qhat(states[tau+self.n], actions[tau+self.n])
                         self.w += self.alpha*(G - self.qhat(states[tau], actions[tau])) * self.grad_qhat(states[tau], actions[tau])
-                
+
+                    self.q.update(states[tau], actions[tau], G)
+
                 if tau == T+1:
                     break
