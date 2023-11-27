@@ -1,76 +1,50 @@
 import numpy as np
 
-class TiledQ():
-    def __init__(self, A, ranges, num_tilings, lr, bins, offsets):
-        self.tilings = []
-        for i in range(num_tilings):
-            t = []
-            for j in range(len(ranges)):
-                t.append(np.linspace(ranges[j,0], ranges[j,1], bins[i,j]+1)[1:-1] + offsets[i,j])
-            self.tilings.append(t)
-
-        self.tilings     = np.array(self.tilings)
-        self.ranges      = ranges
-        self.A           = A
-        self.state_sizes = [tuple(len(splits)+1 for splits in tiling) for tiling in self.tilings]
-        self.q_tables    = [np.zeros((state_size+(len(self.A),))) for state_size in self.state_sizes]
-        self.lr          = lr
-
-    def tile_coding(self, feature):
-        codings = []
-        for t in self.tilings:
-            coding = []
-            for i in range(len(feature)):
-                coding.append(np.digitize(feature[i], t[i]))
-            codings.append(coding)
-        return np.array(codings)
-    
-    def update(self, s, a, G):
-        codings = self.tile_coding(s)
-        a_idx = self.A.index(a)
-        for coding, q_table in zip(codings, self.q_tables):
-            q_table[tuple(coding)+(a_idx,)] += self.lr * (G - q_table[tuple(coding)+(a_idx,)])
-
-    def value(self, s, a=None):
-        codings = self.tile_coding(s)
-        
-        qs = []
-        for a_idx in len(self.A):
-            q = 0
-            for coding, q_table in zip(codings, self.q_tables):
-                q += q_table[tuple(coding)+(a_idx,)]
-            qs.append(q / len(self.tilings))
-        
-        if a:
-            a_idx = self.A.index(a)
-            return qs[a_idx]
-        
-        return np.array(qs)
-
-
-
 class ESGNStepSARSA():
-    def __init__(self, MDP, bins, offsets, D, n, epsilon, gamma, alpha, num_episodes=500):
-        if not (len(bins) == len(offsets) == D):
-            raise ValueError('bins and offsets must both have length D')
-
+    def __init__(self, MDP, num_tilings, num_splits, n, epsilon, gamma, alpha, num_episodes=500):
         self.MDP = MDP
         self.A = self.MDP.A
-        self.q = TiledQ(self.MDP.A, self.MDP.get_feature_ranges(), D, alpha, bins, offsets)
         self.alpha = 0.5
-        self.w = np.zeros(D)
+        self.w = np.zeros(num_tilings * num_splits**2 * len(self.A))
         self.n = n
         self.epsilon = epsilon
         self.gamma = gamma
         self.alpha = alpha
+        self.num_tilings = num_tilings
+        self.num_splits = num_splits
+
+        self.bins = self.code_tiles()
 
         self.num_episodes = num_episodes
 
+    def code_tiles(self):
+        feature_start, feature_stop = self.MDP.get_feature_ranges().T
+        feature_span = feature_stop - feature_start
+
+        feature_steps = (1.0/(self.num_tilings-1)) * feature_span
+        bins = feature_steps[:,None]*np.arange(self.num_splits) + feature_start[:,None]
+        
+        offsets = np.random.rand(self.num_tilings, len(feature_span))
+        offsets *= np.tile(feature_span, (self.num_tilings, 1))
+        offsets += feature_start - feature_span / self.num_splits / 2
+        offsets /= self.num_splits
+        offsets = np.tile(offsets.T,(self.num_splits,1,1)).T
+
+        return bins + offsets
+
     def grad_qhat(self, s, a):
-        return self.q.value(s, a)
+        x = np.zeros((len(self.A), self.num_tilings, self.num_splits, self.num_splits))
+
+        a_idx = self.A.index(a)
+        for i in range(self.num_tilings):
+            j = np.digitize(s[0],self.bins[i,0]) - 1
+            k = np.digitize(s[1],self.bins[i,1]) - 1
+            x[a_idx, i, j, k] = 1.
+
+        return x.flatten()
 
     def qhat(self, s, a=None):
-        return self.w.dot(self.q.value(s, a))
+        return self.w.dot(self.grad_qhat(s,a))
 
     def next_action(self, s):
         A_card = len(self.A)
@@ -113,10 +87,11 @@ class ESGNStepSARSA():
                     G = 0
                     for i in range(lower, upper+1):
                         G += self.gamma**(i-tau-1) * rewards[i]
-                        if t + self.n < T:
-                            G += self.gamma**self.n * self.qhat(states[tau+self.n], actions[tau+self.n])
-                        self.w += self.alpha*(G - self.qhat(states[tau], actions[tau])) * self.grad_qhat(states[tau], actions[tau])
 
+                    if t + self.n < T:
+                        G += self.gamma**self.n * self.qhat(states[tau+self.n], actions[tau+self.n])
+
+                    self.w += self.alpha*(G - self.qhat(states[tau], actions[tau])) * self.grad_qhat(states[tau], actions[tau])
                     self.q.update(states[tau], actions[tau], G)
 
                 if tau == T+1:
