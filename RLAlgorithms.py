@@ -92,7 +92,6 @@ class ESGNStepSARSA():
                         G += self.gamma**self.n * self.qhat(states[tau+self.n], actions[tau+self.n])
 
                     self.w += self.alpha*(G - self.qhat(states[tau], actions[tau])) * self.grad_qhat(states[tau], actions[tau])
-                    self.q.update(states[tau], actions[tau], G)
 
                 if tau == T+1:
                     break
