@@ -14,9 +14,9 @@ class EpisodicContinuousMDP(ABC):
     def next_state(self, a):
         pass
 
-    # @abstractmethod
-    # def is_terminal(self):
-    #     pass
+    @abstractmethod
+    def is_terminal(self):
+        pass
 
     @abstractmethod
     def reward(self, s=None, a=None):
@@ -26,14 +26,14 @@ class EpisodicContinuousMDP(ABC):
     def run_episode(self, policy):
         pass
 
-    # @abstractmethod
-    # def get_feature_ranges(self):
-    #     pass
+    @abstractmethod
+    def get_feature_ranges(self):
+        pass
 
 class MountainCar(EpisodicContinuousMDP):
-    def __init__(self, A=[-1,0,1], x_bounds=[-1.2,0.6], v_bounds=[-0.07, 0.07]):
+    def __init__(self, x_bounds=[-1.2,0.6], v_bounds=[-0.07, 0.07]):
         self.s = self.initial_state()
-        self.A = A
+        self.A = [-1,0,1]
         self.x_lower, self.x_upper = x_bounds
         self.v_lower, self.v_upper = v_bounds
     
@@ -77,70 +77,62 @@ class MountainCar(EpisodicContinuousMDP):
     def get_feature_ranges(self):
         return np.array([[self.x_lower,self.x_upper],[self.v_lower,self.v_upper]])
 
-
-
-
-class InvertedPendulum(EpisodicContinuousMDP):
+class CartPole(EpisodicContinuousMDP):
     def __init__(self):
         self.s = self.initial_state()
-        self.m = 1.0
-        self.l = 1.0
-        self.g = 10.0
-        self.delta_t = 0.05
-        self.theta_upper = np.pi
-        self.theta_dot_upper = 8.0
-        self.tau_upper = 2.0
+        self.A = [-10,10]
 
-    def initial_state(self):
-        # random angle in [-pi, pi], random angular velocity in [-1,1].
-        return [np.random.uniform(-np.pi, np.pi), np.random.uniform(-1, 1)]
+        self.g = 9.8                  # gravity
+        self.mc = 1.0                 # cart's mass
+        self.mp = 0.1                 # pole's mass
+        self.mt = 1.1                 # total mass
+        self.l = 0.5                  # pole's length
+        self.tau = 0.02               # time between action's executed by agent
+
+        self.x_lower, self.x_upper        = -2.4, 2.4
+        self.v_lower, self.v_upper        = -2.3, 2.3
+        self.w_lower, self.w_upper        = -np.pi/15, np.pi/15
+        self.wdot_lower, self.wdot_upper  = -3.4, 3.4
+
+        self.t = 0
 
     def reset(self):
         self.s = self.initial_state()
+        self.t = 0
+
+    def initial_state(self):
+        return [0,0,0,0]
     
-    def normalize_theta(self, theta):
-        return ((theta + np.pi) % (2 * np.pi)) - np.pi
+    def is_terminal(self):
+        return self.s[2] < self.w_lower or self.s[2] > self.w_upper or self.s[0] < self.x_lower or self.s[0] > self.x_upper or self.t > 500
     
-    def next_state(self, tau):
-        # action is the torque, tau
-        theta, theta_dot = self.s
-        if tau > self.tau_upper:
-            tau = self.tau_upper
-        elif tau < -self.tau_upper:
-            tau = -self.tau_upper
-        new_theta_dot =  theta_dot + (3 * self.g / (2 * self.l) * np.sin(theta) + 3.0 / (self.m * self.l**2) * tau) * self.delta_t
-
-        if new_theta_dot > self.theta_dot_upper:
-            new_theta_dot = self.theta_dot_upper
-        elif new_theta_dot < -self.theta_dot_upper:
-            new_theta_dot = -self.theta_dot_upper
-
-        new_theta = theta + new_theta_dot*self.delta_t
-
-        self.s = [new_theta, new_theta_dot]
-
-    def reward(self, tau):
-        theta, theta_dot = self.s
-        theta = self.normalize_theta(theta)
-        return -(theta ** 2 + 0.1 * (theta_dot ** 2) + 0.001 * (tau ** 2))
+    def next_state(self, a):
+        b =     (a + self.mp*self.l*(self.s[3]**2)*np.sin(self.s[2]))  /  self.mt
+        c =     (self.g*np.sin(self.s[2])-np.cos(self.s[2])*b)         /  (self.l*(4/3 - (self.mp*(np.cos(self.s[2])**2)/self.mt)))
+        d = b - (self.mp*self.l*c*np.cos(self.s[2]))                   /  self.mt
         
+        self.s += self.tau*np.array([self.s[1], d, self.s[3], c])
+
+        self.t += 1
+
+    def reward(self, s=None, a=None):
+        return 1
 
     def run_episode(self, policy):
         G = 0
-        for _ in range(200):
-            action = policy(self.s)
-            # added reward first because reward function does not use next state to determine reward
-            print(self.reward(action))
-            G += self.reward(action)
-            self.next_state(action)
+        while not self.is_terminal():
+            self.next_state(policy(self.s))
+            G += self.reward()
+
         self.reset()
         return G
 
+    def get_feature_ranges(self):
+        return np.array([[self.x_lower,self.x_upper],[self.v_lower,self.v_upper],[self.w_lower,self.w_upper],[self.wdot_lower,self.wdot_upper]])
 
 if __name__ == '__main__':
     # mc = MountainCar()
     # print(mc.run_episode(lambda s: -1 if s[1] < 0 else 1))
-
-    pendulum = InvertedPendulum()
-    print(pendulum.run_episode(lambda s : 1))
+    cartpole = CartPole()
+    print(cartpole.run_episode(lambda x: -10))
     

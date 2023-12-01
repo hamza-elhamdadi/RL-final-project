@@ -1,51 +1,52 @@
 import numpy as np
 
-class ESGNStepSARSA():
-    def __init__(self, MDP, num_tilings, num_splits, n, epsilon, gamma, alpha, num_episodes=500):
+class SARSAAlg:
+    def __init__(self, MDP, num_tilings, num_splits):
+        self.alpha   = 0.01
+        self.tdr     = np.random.rand(1)[0]
+        self.epsilon = 0.01
+
         self.MDP = MDP
         self.A = self.MDP.A
-        self.alpha = 0.5
-        self.w = np.zeros(num_tilings * num_splits**2 * len(self.A))
-        self.n = n
-        self.epsilon = epsilon
-        self.gamma = gamma
-        self.alpha = alpha
+
         self.num_tilings = num_tilings
         self.num_splits = num_splits
 
         self.bins = self.code_tiles()
+        self.w = np.zeros(num_tilings * num_splits**len(self.MDP.s) * len(self.A))
 
-        self.num_episodes = num_episodes
+        self.num_episodes = 500
 
     def code_tiles(self):
         feature_start, feature_stop = self.MDP.get_feature_ranges().T
         feature_span = feature_stop - feature_start
 
-        feature_steps = (1.0/(self.num_tilings-1)) * feature_span
-        bins = feature_steps[:,None]*np.arange(self.num_splits) + feature_start[:,None]
+        feature_steps = (1.0/(self.num_splits-1)) * feature_span
+        bins = np.tile(feature_steps[:,None]*np.arange(self.num_splits) + feature_start[:,None], (self.num_tilings, 1))
         
         offsets = np.random.rand(self.num_tilings, len(feature_span))
-        offsets *= np.tile(feature_span, (self.num_tilings, 1))
-        offsets += feature_start - feature_span / self.num_splits / 2
-        offsets /= self.num_splits
+        offsets *= np.tile(feature_span / self.num_splits * 1.9, (self.num_tilings, 1))
+        offsets -= feature_span / self.num_splits * 0.95
         offsets = np.tile(offsets.T,(self.num_splits,1,1)).T
 
         return bins + offsets
-
+    
     def grad_qhat(self, s, a):
-        x = np.zeros((len(self.A), self.num_tilings, self.num_splits, self.num_splits))
+        shape = [len(self.A), self.num_tilings] + [self.num_splits]*len(s)
+        x = np.zeros(shape)
 
         a_idx = self.A.index(a)
         for i in range(self.num_tilings):
-            j = np.digitize(s[0],self.bins[i,0]) - 1
-            k = np.digitize(s[1],self.bins[i,1]) - 1
-            x[a_idx, i, j, k] = 1.
+            jkl = [a_idx, i]
+            for j in range(len(s)):
+                jkl.append(np.digitize(s[j],self.bins[i,j]) - 1)
+            x[(..., *jkl)] = 1.
 
         return x.flatten()
 
     def qhat(self, s, a=None):
         return self.w.dot(self.grad_qhat(s,a))
-
+    
     def next_action(self, s):
         A_card = len(self.A)
         probs = np.zeros(A_card) + self.epsilon / A_card
@@ -54,6 +55,11 @@ class ESGNStepSARSA():
         probs[np.argmax(q)] += (1 - self.epsilon)
 
         return np.random.choice(self.A, 1, p=probs) 
+
+class ESGNStepSARSA(SARSAAlg):
+    def __init__(self, MDP, num_tilings, num_splits, n):
+        super().__init__(MDP, num_tilings, num_splits)
+        self.n = n
 
     def run(self):
         for _ in range(self.num_episodes):
@@ -95,3 +101,28 @@ class ESGNStepSARSA():
 
                 if tau == T+1:
                     break
+
+class TrueOnlineSARSALambda(SARSAAlg):
+    def run(self):
+        for _ in range(self.num_episodes):
+            self.MDP.reset()
+            s = self.MDP.s
+            a = self.next_action(s)
+            x = self.grad_qhat(s, a)
+            z = np.zeros(x.shape)
+            Q_old = 0
+            while not self.MDP.is_terminal():
+                self.MDP.next_state(a)
+                R = self.MDP.reward()
+                s = self.MDP.s
+                a = self.next_action(s)
+
+                xp = self.grad_qhat(s, a)
+                Q = self.w.dot(x)
+                Qp = self.qhat(s, a)
+                delta = R + self.gamma*Qp - Q
+                z = self.gamma*self.tdr*z + (1 - self.alpha*self.gamma*self.tdr*z.dot(x))*x
+                w += self.alpha*(delta + Q - Q_old)*z - self.alpha*(Q - Q_old)*x
+                Q_old = Qp
+                x = xp
+            
