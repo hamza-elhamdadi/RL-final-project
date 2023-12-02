@@ -26,22 +26,25 @@ class EpisodicContinuousMDP(ABC):
     def run_episode(self, policy):
         pass
 
+    def get_normalized_state(self):
+        pass
+
     @abstractmethod
     def get_feature_ranges(self):
         pass
 
 class MountainCar(EpisodicContinuousMDP):
-    def __init__(self, x_bounds=[-1.2,0.6], v_bounds=[-0.07, 0.07]):
+    def __init__(self):
         self.s = self.initial_state()
         self.A = [-1,0,1]
-        self.x_lower, self.x_upper = x_bounds
-        self.v_lower, self.v_upper = v_bounds
+        self.x_lower, self.x_upper = [-1.2,  0.6 ]
+        self.v_lower, self.v_upper = [-0.07, 0.07]
     
     def reset(self):
         self.s = self.initial_state()
 
     def initial_state(self):
-        return [-0.5, 0]
+        return np.array([-0.5, 0])
 
     def next_state(self, a):
         if self.s[0] == self.x_upper:
@@ -60,7 +63,7 @@ class MountainCar(EpisodicContinuousMDP):
             self.s[1] = 0
 
     def is_terminal(self):
-        return self.s[0] == 0.5
+        return self.s[0] == self.x_upper
 
     def reward(self, s=None, a=None):
         return (self.s[0] == self.x_upper) - 1
@@ -73,6 +76,10 @@ class MountainCar(EpisodicContinuousMDP):
 
         self.reset()
         return G
+
+    def get_normalized_state(self):
+        mins, maxs = self.get_feature_ranges().T
+        return (self.s - mins) / (maxs - mins)
 
     def get_feature_ranges(self):
         return np.array([[self.x_lower,self.x_upper],[self.v_lower,self.v_upper]])
@@ -101,7 +108,7 @@ class CartPole(EpisodicContinuousMDP):
         self.t = 0
 
     def initial_state(self):
-        return [0,0,0,0]
+        return np.array([0,0,0,0])
     
     def is_terminal(self):
         return self.s[2] < self.w_lower or self.s[2] > self.w_upper or self.s[0] < self.x_lower or self.s[0] > self.x_upper or self.t > 500
@@ -126,6 +133,10 @@ class CartPole(EpisodicContinuousMDP):
 
         self.reset()
         return G
+
+    def get_normalized_state(self):
+        mins, maxs = self.get_feature_ranges().T
+        return (self.s - mins) / (maxs - mins)
 
     def get_feature_ranges(self):
         return np.array([[self.x_lower,self.x_upper],[self.v_lower,self.v_upper],[self.w_lower,self.w_upper],[self.wdot_lower,self.wdot_upper]])
