@@ -26,7 +26,8 @@ class EpisodicContinuousMDP(ABC):
     def run_episode(self, policy):
         pass
 
-    def get_normalized_state(self):
+    @abstractmethod
+    def get_normalized_state(self, s=None):
         pass
 
     @abstractmethod
@@ -77,9 +78,9 @@ class MountainCar(EpisodicContinuousMDP):
         self.reset()
         return G
 
-    def get_normalized_state(self):
+    def get_normalized_state(self, s=None):
         mins, maxs = self.get_feature_ranges().T
-        return (self.s - mins) / (maxs - mins)
+        return (self.s if not s else s - mins) / (maxs - mins)
 
     def get_feature_ranges(self):
         return np.array([[self.x_lower,self.x_upper],[self.v_lower,self.v_upper]])
@@ -134,9 +135,9 @@ class CartPole(EpisodicContinuousMDP):
         self.reset()
         return G
 
-    def get_normalized_state(self):
+    def get_normalized_state(self, s=None):
         mins, maxs = self.get_feature_ranges().T
-        return (self.s - mins) / (maxs - mins)
+        return (self.s if not s else s - mins) / (maxs - mins)
 
     def get_feature_ranges(self):
         return np.array([[self.x_lower,self.x_upper],[self.v_lower,self.v_upper],[self.w_lower,self.w_upper],[self.wdot_lower,self.wdot_upper]])

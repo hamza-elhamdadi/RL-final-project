@@ -11,56 +11,23 @@ class SARSAAlg:
         self.A = self.MDP.A
 
         self.M = M
-        self.w = np.zeros(1 + len(self.MDP.s)*M)
-
-        # self.num_tilings = num_tilings
-        # self.num_splits = num_splits
-
-        # self.bins = self.code_tiles()
-        # self.w = np.zeros(num_tilings * num_splits**len(self.MDP.s) * len(self.A))
+        self.w = np.zeros((len(self.A), 1 + len(self.MDP.s) * M ))
 
         self.num_episodes = 500
 
-    def x(self, s, a):
-        s = self.MDP.get_normalized_state()
+    def x(self, s):
+        s = self.MDP.get_normalized_state(s)
+        phi = []
 
-        phi = [1]
         for feature in s:
             for i in range(1, self.M + 1):
                 phi.append(np.cos(i*np.pi*feature))
-            
+
         return np.array(phi)
                 
     def qhat(self, s, a):
-        return self.w.dot(self.x(s,a))
-
-    # def code_tiles(self):
-    #     feature_start, feature_stop = self.MDP.get_feature_ranges().T
-    #     feature_span = feature_stop - feature_start
-
-    #     feature_steps = (1.0/(self.num_splits-1)) * feature_span
-    #     bins = feature_steps[:,None]*np.arange(self.num_splits) + feature_start[:,None]
-        
-    #     offsets = np.random.rand(self.num_tilings, len(feature_span))
-    #     offsets *= np.tile(feature_span / self.num_splits * 1.9, (self.num_tilings, 1))
-    #     offsets -= feature_span / self.num_splits * 0.95
-    #     offsets = np.tile(offsets.T,(self.num_splits,1,1)).T
-
-    #     return bins + offsets
-    
-
-    # def grad_qhat(self, s, a):
-    #     shape = [len(self.A), self.num_tilings] + [self.num_splits]*len(s)
-    #     x = np.zeros(shape)
-
-    #     a_idx = self.A.index(a)
-    #     for i in range(self.num_tilings):
-    #         jkl = [a_idx, i]
-    #         for j in range(len(s)):
-    #             jkl.append(np.digitize(s[j],self.bins[i,j]) - 1)
-    #         x[(..., *jkl)] = 1.
-
-    #     return x.flatten()
+        a_idx = self.A.index(a)
+        return self.w[a_idx].dot(self.x(s))
     
     def next_action(self, s):
         A_card = len(self.A)
@@ -117,7 +84,7 @@ class ESGNStepSARSA(SARSAAlg):
                     if t + self.n < T:
                         G += self.gamma**self.n * self.qhat(states[tau+self.n], actions[tau+self.n])
 
-                    self.w += self.alpha*(G - self.qhat(states[tau], actions[tau])) * self.grad_qhat(states[tau], actions[tau])
+                    self.w += self.alpha*(G - self.qhat(states[tau], actions[tau])) * self.x(states[tau])
 
                 if tau == T+1:
                     break
@@ -128,7 +95,7 @@ class TrueOnlineSARSALambda(SARSAAlg):
             self.MDP.reset()
             s = self.MDP.s
             a = self.next_action(s)
-            x = self.grad_qhat(s, a)
+            x = self.x(s, a)
             z = np.zeros(x.shape)
             Q_old = 0
             while not self.MDP.is_terminal():
@@ -138,7 +105,7 @@ class TrueOnlineSARSALambda(SARSAAlg):
                 print(s[0])
                 a = self.next_action(s)
 
-                xp = self.grad_qhat(s, a)
+                xp = self.x(s, a)
                 Q = self.w.dot(x)
                 Qp = self.qhat(s, a)
                 delta = R + self.gamma*Qp - Q
