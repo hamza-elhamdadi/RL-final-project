@@ -95,7 +95,7 @@ class TrueOnlineSARSALambda(SARSAAlg):
             self.MDP.reset()
             s = self.MDP.s
             a = self.next_action(s)
-            x = self.x(s, a)
+            x = self.x(s)
             z = np.zeros(x.shape)
             Q_old = 0
             while not self.MDP.is_terminal():
@@ -105,7 +105,7 @@ class TrueOnlineSARSALambda(SARSAAlg):
                 print(s[0])
                 a = self.next_action(s)
 
-                xp = self.x(s, a)
+                xp = self.x(s)
                 Q = self.w.dot(x)
                 Qp = self.qhat(s, a)
                 delta = R + self.gamma*Qp - Q
