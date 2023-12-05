@@ -35,16 +35,19 @@ class EpisodicContinuousMDP(ABC):
         pass
 
 class MountainCar(EpisodicContinuousMDP):
-    def __init__(self):
+    def __init__(self, gamma=0.9):
         self.s = self.initial_state()
         self.A = [-1,0,1]
         self.x_lower, self.x_upper = [-1.2,  0.6 ]
         self.v_lower, self.v_upper = [-0.07, 0.07]
 
         self.t = 0
+
+        self.gamma = 0.9
     
     def reset(self):
         self.s = self.initial_state()
+        self.t = 0
 
     def initial_state(self):
         return np.array([-0.5, 0])
@@ -68,10 +71,10 @@ class MountainCar(EpisodicContinuousMDP):
         self.t += 1
 
     def is_terminal(self):
-        return self.s[0] == self.x_upper or self.t > 500
+        return (self.s[0] == self.x_upper) or (self.t > 500)
 
     def reward(self, s=None, a=None):
-        return (self.s[0] == self.x_upper) - 1
+        return self.gamma**self.t * ((self.s[0] == self.x_upper) - 1)
 
     def run_episode(self, policy):
         G = 0
@@ -108,6 +111,8 @@ class CartPole(EpisodicContinuousMDP):
 
         self.t = 0
 
+        self.gamma = 1.0
+
     def reset(self):
         self.s = self.initial_state()
         self.t = 0
@@ -128,7 +133,7 @@ class CartPole(EpisodicContinuousMDP):
         self.t += 1
 
     def reward(self, s=None, a=None):
-        return 1
+        return self.gamma**self.t
 
     def run_episode(self, policy):
         G = 0

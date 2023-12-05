@@ -1,11 +1,11 @@
 import numpy as np
+from tqdm import tqdm
 
 class SARSAAlg:
     def __init__(self, MDP, M):
-        self.alpha   = 0.01
+        self.alpha   = 1
         self.tdr     = 0.9
         self.epsilon = 0.01
-        self.gamma   = 0.5
 
         self.MDP = MDP
         self.A = self.MDP.A
@@ -13,7 +13,7 @@ class SARSAAlg:
         self.M = M
         self.w = np.zeros((len(self.A), 1 + len(self.MDP.s) * M ))
 
-        self.num_episodes = 1000
+        self.num_episodes = 10000
 
     def x(self, s):
         s = self.MDP.get_normalized_state(s)
@@ -79,19 +79,22 @@ class ESGNStepSARSA(SARSAAlg):
                     upper = min(tau+self.n, T)
                     G = 0
                     for i in range(lower, upper+1):
-                        G += self.gamma**(i-tau-1) * rewards[i]
+                        G += self.MDP.gamma**(i-tau-1) * rewards[i]
 
                     if t + self.n < T:
-                        G += self.gamma**self.n * self.qhat(states[tau+self.n], actions[tau+self.n])
+                        G += self.MDP.gamma**self.n * self.qhat(states[tau+self.n], actions[tau+self.n])
 
-                    self.w += self.alpha*(G - self.qhat(states[tau], actions[tau])) * self.x(states[tau])
+                    self.w += (self.alpha/t)*(G - self.qhat(states[tau], actions[tau])) * self.x(states[tau])
 
-                if tau == T+1:
+                if tau == T-1:
                     break
+            
+                t += 1
 
 class TrueOnlineSARSALambda(SARSAAlg):
     def run(self):
-        for _ in range(self.num_episodes):
+        for epnum in tqdm(range(self.num_episodes)):
+            alp = self.alpha / (epnum+1)
             self.MDP.reset()
             s = self.MDP.s
             a = self.next_action(s)
@@ -102,15 +105,17 @@ class TrueOnlineSARSALambda(SARSAAlg):
                 self.MDP.next_state(a)
                 R = self.MDP.reward()
                 s = self.MDP.s
-                print(s[0])
+                # print(s[0])
                 a = self.next_action(s)
+                a_idx = self.A.index(a)
 
                 xp = self.x(s)
-                Q = self.w.dot(x)[self.A.index(a)]
-                Qp = self.qhat(s, a)
-                delta = R + self.gamma*Qp - Q
-                z = self.gamma*self.tdr*z + (1 - self.alpha*self.gamma*self.tdr*z.dot(x))*x
-                self.w += self.alpha*(delta + Q - Q_old)*z - self.alpha*(Q - Q_old)*x
+                Q = self.w[a_idx].dot(x)
+                Qp = self.w[a_idx].dot(xp)
+                delta = R + self.MDP.gamma*Qp - Q
+                
+                z = self.MDP.gamma*self.tdr*z + (1 - alp*self.MDP.gamma*self.tdr*z.dot(x))*x
+                self.w[a_idx] += alp*(delta + Q - Q_old)*z - alp*(Q - Q_old)*x
                 Q_old = Qp
                 x = xp
             
