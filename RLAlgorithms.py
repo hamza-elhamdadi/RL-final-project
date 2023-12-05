@@ -13,7 +13,7 @@ class SARSAAlg:
         self.M = M
         self.w = np.zeros((len(self.A), 1 + len(self.MDP.s) * M ))
 
-        self.num_episodes = 500
+        self.num_episodes = 1000
 
     def x(self, s):
         s = self.MDP.get_normalized_state(s)

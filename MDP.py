@@ -40,6 +40,8 @@ class MountainCar(EpisodicContinuousMDP):
         self.A = [-1,0,1]
         self.x_lower, self.x_upper = [-1.2,  0.6 ]
         self.v_lower, self.v_upper = [-0.07, 0.07]
+
+        self.t = 0
     
     def reset(self):
         self.s = self.initial_state()
@@ -63,8 +65,10 @@ class MountainCar(EpisodicContinuousMDP):
             self.s[0] = self.x_upper
             self.s[1] = 0
 
+        self.t += 1
+
     def is_terminal(self):
-        return self.s[0] == self.x_upper
+        return self.s[0] == self.x_upper or self.t > 500
 
     def reward(self, s=None, a=None):
         return (self.s[0] == self.x_upper) - 1
