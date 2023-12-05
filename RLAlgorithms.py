@@ -3,7 +3,7 @@ import numpy as np
 class SARSAAlg:
     def __init__(self, MDP, M):
         self.alpha   = 0.01
-        self.tdr     = np.random.rand(1)[0]
+        self.tdr     = 0.9
         self.epsilon = 0.01
         self.gamma   = 0.5
 
@@ -17,7 +17,7 @@ class SARSAAlg:
 
     def x(self, s):
         s = self.MDP.get_normalized_state(s)
-        phi = []
+        phi = [1]
 
         for feature in s:
             for i in range(1, self.M + 1):
@@ -44,8 +44,8 @@ class SARSAAlg:
         return np.random.choice(self.A, 1, p=probs) 
 
 class ESGNStepSARSA(SARSAAlg):
-    def __init__(self, MDP, num_tilings, num_splits, n):
-        super().__init__(MDP, num_tilings, num_splits)
+    def __init__(self, MDP, M, n):
+        super().__init__(MDP, M)
         self.n = n
 
     def run(self):
@@ -106,7 +106,7 @@ class TrueOnlineSARSALambda(SARSAAlg):
                 a = self.next_action(s)
 
                 xp = self.x(s)
-                Q = self.w.dot(x)
+                Q = self.w.dot(x)[self.A.index(a)]
                 Qp = self.qhat(s, a)
                 delta = R + self.gamma*Qp - Q
                 z = self.gamma*self.tdr*z + (1 - self.alpha*self.gamma*self.tdr*z.dot(x))*x
