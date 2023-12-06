@@ -3,9 +3,9 @@ from tqdm import tqdm
 
 class SARSAAlg:
     def __init__(self, MDP, M):
-        self.alpha   = 1
-        self.tdr     = 0.01
-        self.epsilon = 1
+        self.alpha   = 0.001
+        self.tdr     = 0.9
+        self.epsilon = 0.2
 
         self.MDP = MDP
         self.A = self.MDP.A
@@ -13,7 +13,7 @@ class SARSAAlg:
         self.M = M
         self.w = np.zeros((len(self.A), 1 + len(self.MDP.s) * self.M ))
 
-        self.num_episodes = 500
+        self.num_episodes = 2000
 
     def reset(self):
         self.w = np.zeros((len(self.A), 1 + len(self.MDP.s) * self.M ))
@@ -107,37 +107,43 @@ class ESGNStepSARSA(SARSAAlg):
 
 class TrueOnlineSARSALambda(SARSAAlg):
     def run(self):
-        for epnum in range(self.num_episodes):
-            alpha = self.alpha / (epnum+1)
+        returns = []
+        for epnum in tqdm(range(self.num_episodes)):
+            alpha = self.alpha
 
-            print('training for current episode')
 
             self.MDP.reset()
+            # initialize s
             s = self.MDP.s
-
+            # choose a, epsilon greedy acc to q(s, ., w)
             a = self.next_action(s)
-
+            # x(s, a)
             x = self.x(s)
+            # z = vector of zeroes of length = len(x)
             z = np.zeros(x.shape)
-            
+            # Q_old = 0
             Q_old = 0
-
+            # loop for each step of episode
             while not self.MDP.is_terminal():
+                # Take action a, observe r, s'
                 self.MDP.next_state(a)
                 R = self.MDP.reward()
                 # print(R)
                 s = self.MDP.s
                 # print(s[0])
-                a = self.next_action(s)
-                print('action taken:',self.A.index(a))
+                # choose a, epsilon greedy acc to q(s', ., w)
+                ap = self.next_action(s)
+                # print('action taken:',self.A.index(a))
                 a_idx = self.A.index(a)
+                ap_idx = self.A.index(ap)
 
                 xp = self.x(s)
+                # Why are we using index of a' and not index of a
                 Q = self.w[a_idx].dot(x)
                 # print(f'w[{a_idx}]:',self.w[a_idx])
                 # print(f'x:',x)
                 # print('Q:',Q)
-                Qp = self.w[a_idx].dot(xp)
+                Qp = self.w[ap_idx].dot(xp)
                 # print(f'xp:',xp)
                 # print('Qp:',Qp)
                 # print('z.dot(x):',z.dot(x))
@@ -150,12 +156,13 @@ class TrueOnlineSARSALambda(SARSAAlg):
                 # z += x - alpha * self.MDP.gamma * self.tdr * z.dot(x) * x
                 # print(z)
                 update = alpha*(delta + Q - Q_old)*z - alpha*(Q - Q_old)*x
-                print('update:',update)
+                # print('update:',update)
                 self.w[a_idx] += update
                 Q_old = Qp
                 x = xp
+                a = ap
 
-            print('getting return for current episode')
+            # print('getting return for current episode')
 
             self.MDP.reset()
             G = 0
@@ -164,6 +171,9 @@ class TrueOnlineSARSALambda(SARSAAlg):
                 a = self.next_action(self.MDP.s)
                 self.MDP.next_state(a)
             
-            print(f'episode: {epnum}, G =',G)
+            # print(f'episode: {epnum}, G =',G)
+            returns.append(G)
 
-            self.epsilon *= 0.9
+        return returns
+
+            # self.epsilon *= 0.9
