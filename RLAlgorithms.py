@@ -11,12 +11,12 @@ class SARSAAlg:
         self.A = self.MDP.A
 
         self.M = M
-        self.w = np.zeros((len(self.A), 1 + len(self.MDP.s) * M ))
+        self.w = np.zeros((len(self.A), 1 + len(self.MDP.s) * self.M ))
 
         self.num_episodes = 500
 
-    def reset():
-        self.w = np.zeros((len(self.A), 1 + len(self.MDP.s) * M ))
+    def reset(self):
+        self.w = np.zeros((len(self.A), 1 + len(self.MDP.s) * self.M ))
 
     def x(self, s):
         s = self.MDP.get_normalized_state(s)
@@ -40,7 +40,7 @@ class SARSAAlg:
         for a_idx in range(A_card):
             q.append(self.w[a_idx].dot(self.x(s)))
 
-        print('q when selecting action:',q)
+        # print('q when selecting action:',q)
         max_a_idx = np.argmax(q)
         probs[max_a_idx] += (1 - self.epsilon) 
 
@@ -52,12 +52,13 @@ class ESGNStepSARSA(SARSAAlg):
         self.n = n
 
     def run(self):
-        for _ in range(self.num_episodes):
+        Gs = []
+        for epnum in range(self.num_episodes):
             self.MDP.reset()
 
             states = []
             actions = []
-            rewards = []
+            rewards = [None]
 
             states.append(self.MDP.s)
 
@@ -80,21 +81,29 @@ class ESGNStepSARSA(SARSAAlg):
                 if tau >= 0:
                     lower = tau + 1
                     upper = min(tau+self.n, T)
-                    print(lower, upper, len(upper))
                     G = 0
                     for i in range(lower, upper+1):
-                        print(i)
                         G += self.MDP.gamma**(i-tau-1) * rewards[i]
 
                     if t + self.n < T:
                         G += self.MDP.gamma**self.n * self.qhat(states[tau+self.n], actions[tau+self.n])
 
-                    self.w += (self.alpha/t)*(G - self.qhat(states[tau], actions[tau])) * self.x(states[tau])
+                    self.w[self.A.index(a)] += (self.alpha/(epnum+1))*(G - self.qhat(states[tau], actions[tau])) * self.x(states[tau])
 
                 if tau == T-1:
                     break
             
                 t += 1
+            
+            self.MDP.reset()
+            G = 0
+            while not self.MDP.is_terminal():
+                G += self.MDP.reward()
+                a = self.next_action(self.MDP.s)
+                self.MDP.next_state(a)
+            Gs.append(G)
+            # print(f'episode: {epnum}, G =',G)
+        return Gs
 
 class TrueOnlineSARSALambda(SARSAAlg):
     def run(self):
