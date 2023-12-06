@@ -4,8 +4,8 @@ from tqdm import tqdm
 class SARSAAlg:
     def __init__(self, MDP, M):
         self.alpha   = 1
-        self.tdr     = 0.9
-        self.epsilon = 0.01
+        self.tdr     = 0.01
+        self.epsilon = 1
 
         self.MDP = MDP
         self.A = self.MDP.A
@@ -13,7 +13,10 @@ class SARSAAlg:
         self.M = M
         self.w = np.zeros((len(self.A), 1 + len(self.MDP.s) * M ))
 
-        self.num_episodes = 10000
+        self.num_episodes = 500
+
+    def reset():
+        self.w = np.zeros((len(self.A), 1 + len(self.MDP.s) * M ))
 
     def x(self, s):
         s = self.MDP.get_normalized_state(s)
@@ -33,15 +36,15 @@ class SARSAAlg:
         A_card = len(self.A)
         probs = np.zeros(A_card) + self.epsilon / A_card
 
-        max_q, max_a_idx = float('-inf'), 0
-        for i, a in enumerate(self.A):
-            q = self.qhat(s,a)
-            if q > max_q:
-                max_q = q
-                max_a_idx = i
+        q = []
+        for a_idx in range(A_card):
+            q.append(self.w[a_idx].dot(self.x(s)))
+
+        print('q when selecting action:',q)
+        max_a_idx = np.argmax(q)
         probs[max_a_idx] += (1 - self.epsilon) 
 
-        return np.random.choice(self.A, 1, p=probs) 
+        return np.random.choice(self.A, p=probs)
 
 class ESGNStepSARSA(SARSAAlg):
     def __init__(self, MDP, M, n):
@@ -77,8 +80,10 @@ class ESGNStepSARSA(SARSAAlg):
                 if tau >= 0:
                     lower = tau + 1
                     upper = min(tau+self.n, T)
+                    print(lower, upper, len(upper))
                     G = 0
                     for i in range(lower, upper+1):
+                        print(i)
                         G += self.MDP.gamma**(i-tau-1) * rewards[i]
 
                     if t + self.n < T:
@@ -93,29 +98,63 @@ class ESGNStepSARSA(SARSAAlg):
 
 class TrueOnlineSARSALambda(SARSAAlg):
     def run(self):
-        for epnum in tqdm(range(self.num_episodes)):
-            alp = self.alpha / (epnum+1)
+        for epnum in range(self.num_episodes):
+            alpha = self.alpha / (epnum+1)
+
+            print('training for current episode')
+
             self.MDP.reset()
             s = self.MDP.s
+
             a = self.next_action(s)
+
             x = self.x(s)
             z = np.zeros(x.shape)
+            
             Q_old = 0
+
             while not self.MDP.is_terminal():
                 self.MDP.next_state(a)
                 R = self.MDP.reward()
+                # print(R)
                 s = self.MDP.s
                 # print(s[0])
                 a = self.next_action(s)
+                print('action taken:',self.A.index(a))
                 a_idx = self.A.index(a)
 
                 xp = self.x(s)
                 Q = self.w[a_idx].dot(x)
+                # print(f'w[{a_idx}]:',self.w[a_idx])
+                # print(f'x:',x)
+                # print('Q:',Q)
                 Qp = self.w[a_idx].dot(xp)
+                # print(f'xp:',xp)
+                # print('Qp:',Qp)
+                # print('z.dot(x):',z.dot(x))
+                # print(Q_old, Q, Qp)
                 delta = R + self.MDP.gamma*Qp - Q
+                # print(delta)
                 
-                z = self.MDP.gamma*self.tdr*z + (1 - alp*self.MDP.gamma*self.tdr*z.dot(x))*x
-                self.w[a_idx] += alp*(delta + Q - Q_old)*z - alp*(Q - Q_old)*x
+                z += x - alpha * z.dot(x) * x
+                z *= self.MDP.gamma * self.tdr
+                # z += x - alpha * self.MDP.gamma * self.tdr * z.dot(x) * x
+                # print(z)
+                update = alpha*(delta + Q - Q_old)*z - alpha*(Q - Q_old)*x
+                print('update:',update)
+                self.w[a_idx] += update
                 Q_old = Qp
                 x = xp
+
+            print('getting return for current episode')
+
+            self.MDP.reset()
+            G = 0
+            while not self.MDP.is_terminal():
+                G += self.MDP.reward()
+                a = self.next_action(self.MDP.s)
+                self.MDP.next_state(a)
             
+            print(f'episode: {epnum}, G =',G)
+
+            self.epsilon *= 0.9

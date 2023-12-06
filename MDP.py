@@ -43,7 +43,7 @@ class MountainCar(EpisodicContinuousMDP):
 
         self.t = 0
 
-        self.gamma = 0.9
+        self.gamma = 1
     
     def reset(self):
         self.s = self.initial_state()
@@ -128,7 +128,7 @@ class CartPole(EpisodicContinuousMDP):
         c =     (self.g*np.sin(self.s[2])-np.cos(self.s[2])*b)         /  (self.l*(4/3 - (self.mp*(np.cos(self.s[2])**2)/self.mt)))
         d = b - (self.mp*self.l*c*np.cos(self.s[2]))                   /  self.mt
         
-        self.s += self.tau*np.array([self.s[1], d[0], self.s[3], c[0]])
+        self.s += self.tau*np.array([self.s[1], d, self.s[3], c])
 
         self.t += 1
 
