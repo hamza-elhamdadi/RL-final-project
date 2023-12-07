@@ -115,7 +115,7 @@ class ESGNStepSARSA(SARSAAlg):
         return Gs
 
 class TrueOnlineSARSALambda(SARSAAlg):
-    def __init__(self, MDP, M, tdr, epsilon=0.99999, approach='epsilon-greedy'):
+    def __init__(self, MDP, M, tdr, epsilon=0.99999, approach='softmax'):
         super().__init__(MDP, M, epsilon, approach)
         self.tdr = tdr
 
