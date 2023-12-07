@@ -62,7 +62,7 @@ class ESGNStepSARSA(SARSAAlg):
 
     def run(self):
         Gs = []
-        for epnum in range(self.num_episodes):
+        for epnum in tqdm(range(self.num_episodes)):
             self.MDP.reset()
 
             states = []
