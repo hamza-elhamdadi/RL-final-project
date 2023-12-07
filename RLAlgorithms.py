@@ -3,8 +3,8 @@ from tqdm import tqdm
 from scipy.special import softmax
 
 class SARSAAlg:
-    def __init__(self, MDP, M, epsilon=0.99999, approach='epsilon-greedy'):
-        self.alpha   = 0.001
+    def __init__(self, MDP, M, alpha=0.001, epsilon=0.99999, approach='epsilon-greedy'):
+        self.alpha   = alpha
         self.base_epsilon = epsilon
         self.epsilon = epsilon
         self.approach = approach
@@ -56,8 +56,8 @@ class SARSAAlg:
         return np.random.choice(self.A, p=probs)
 
 class ESGNStepSARSA(SARSAAlg):
-    def __init__(self, MDP, M, n, epsilon=0.99999, approach='epsilon-greedy'):
-        super().__init__(MDP, M, epsilon, approach)
+    def __init__(self, MDP, M, n, alpha=0.001, epsilon=0.99999, approach='epsilon-greedy'):
+        super().__init__(MDP, M, alpha, epsilon, approach)
         self.n = n
 
     def run(self):
@@ -115,8 +115,8 @@ class ESGNStepSARSA(SARSAAlg):
         return Gs
 
 class TrueOnlineSARSALambda(SARSAAlg):
-    def __init__(self, MDP, M, tdr, epsilon=0.99999, approach='softmax'):
-        super().__init__(MDP, M, epsilon, approach)
+    def __init__(self, MDP, M, tdr, alpha=0.001, epsilon=0.99999, approach='softmax'):
+        super().__init__(MDP, M, alpha, epsilon, approach)
         self.tdr = tdr
 
     def run(self):
