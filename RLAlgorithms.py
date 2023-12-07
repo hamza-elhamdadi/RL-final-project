@@ -4,10 +4,11 @@ from scipy.special import softmax
 
 class SARSAAlg:
     def __init__(self, MDP, M, alpha=0.001, epsilon=0.99999, approach='epsilon-greedy'):
-        self.alpha   = alpha
+        self.base_alpha   = alpha
+        self.alpha        = 0.99999 if self.base_alpha == 'decay' else alpha
         self.base_epsilon = epsilon
-        self.epsilon = epsilon
-        self.approach = approach
+        self.epsilon      = epsilon
+        self.approach     = approach
 
         self.MDP = MDP
         self.A = self.MDP.A
@@ -15,11 +16,12 @@ class SARSAAlg:
         self.M = M
         self.w = np.zeros((len(self.A), 1 + len(self.MDP.s) * self.M ))
 
-        self.num_episodes = 5
+        self.num_episodes = 2000
 
     def reset(self):
         self.w = np.zeros((len(self.A), 1 + len(self.MDP.s) * self.M ))
         self.epsilon = self.base_epsilon
+        self.alpha = 0.99999 if self.base_alpha == 'decay' else self.base_alpha
 
     def x(self, s):
         s = self.MDP.get_normalized_state(s)
@@ -63,8 +65,8 @@ class ESGNStepSARSA(SARSAAlg):
     def run(self):
         Gs = []
         # for each episode
-        # for epnum in tqdm(range(self.num_episodes)):
-        for epnum in range(self.num_episodes):
+        for epnum in tqdm(range(self.num_episodes)):
+        # for epnum in range(self.num_episodes):
             states = []
             actions = []
             rewards = [0]
@@ -105,17 +107,12 @@ class ESGNStepSARSA(SARSAAlg):
                     G = 0
                     for i in range(lower, upper+1):
                         # print(len(rewards), i%(self.n + 1))
-                        G += (self.MDP.gamma**(i-tau-1) * rewards[i%(self.n + 1)])
+                        G += (self.MDP.gamma**(i-tau-1) * rewards[i])
                     # print(lower, upper, G, rewards)
-                    if t + self.n < T:
-                        idx = (tau+self.n)%(self.n + 1)
-                        G += self.MDP.gamma**self.n * self.qhat(states[idx], actions[idx])
-                    idx = tau%(self.n + 1)
-                    self.w[self.A.index(actions[idx])] += self.alpha*(G - self.qhat(states[idx], actions[idx])) * self.x(states[idx])
-                    w = []
-                    for a in self.A:
-                        w.append(self.w[self.A.index(a)].dot(self.x(states[idx])))
-                    print(t,T,tau,np.array(w))
+                    if tau + self.n < T:
+                        G += self.MDP.gamma**self.n * self.qhat(states[tau+self.n], actions[tau+self.n])
+                    self.w[self.A.index(actions[tau])] += self.alpha*(G - self.qhat(states[tau], actions[tau])) * self.x(states[tau])
+                    
                 if tau == T-1:
                     break
             
@@ -193,6 +190,12 @@ class TrueOnlineSARSALambda(SARSAAlg):
                 if epnum % 50 == 0 and epnum > 0:
                     self.epsilon *= self.epsilon
                     self.epsilon = max(self.epsilon, 0.0001)
+            
+            if self.base_alpha == 'decay':
+                if self.alpha > 0.005:
+                    if epnum % 50 == 0 and epnum > 0:
+                        self.alpha *= self.alpha
+                        self.alpha = max(self.alpha, 0.0001)
                     
 
             # print(f'episode: {epnum}, G =',G)
