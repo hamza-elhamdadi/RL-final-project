@@ -15,7 +15,7 @@ class SARSAAlg:
         self.M = M
         self.w = np.zeros((len(self.A), 1 + len(self.MDP.s) * self.M ))
 
-        self.num_episodes = 2000
+        self.num_episodes = 5
 
     def reset(self):
         self.w = np.zeros((len(self.A), 1 + len(self.MDP.s) * self.M ))
@@ -62,43 +62,60 @@ class ESGNStepSARSA(SARSAAlg):
 
     def run(self):
         Gs = []
-        for epnum in tqdm(range(self.num_episodes)):
-            self.MDP.reset()
-
+        # for each episode
+        # for epnum in tqdm(range(self.num_episodes)):
+        for epnum in range(self.num_episodes):
             states = []
             actions = []
-            rewards = [None]
+            rewards = [0]
 
+            # intialize and store s_0
+            self.MDP.reset()
             states.append(self.MDP.s)
 
+            # select and store a_0, epsilon greedy/softmax
             a = self.next_action(self.MDP.s)
+            # print(a)
             actions.append(a)
 
+            # T = inf
             T, t = float('inf'), 0
+            # loop over t until tau = T-1
             while True:
+                # print('t, T:', t, T)
                 if t < T:
+                    # take action a_t
                     self.MDP.next_state(a)
+                    # observe  and store r_t+1
                     rewards.append(self.MDP.reward())
+                    # observe and store s_t+1
                     states.append(self.MDP.s)
-
+                    # is s_t+1 is terminal
                     if self.MDP.is_terminal():
                         T = t + 1
                     else:
-                        a = self.next_action(self.MDP.s)
-                        actions.append(a)
+                        # select a_t+1, epsilon_greedy/softmax
+                        actions.append(self.next_action(states[-1]))
+                # tau = t - n + 1
                 tau = t - self.n + 1
+                # print('tau:', tau)
                 if tau >= 0:
                     lower = tau + 1
                     upper = min(tau+self.n, T)
                     G = 0
                     for i in range(lower, upper+1):
-                        G += self.MDP.gamma**(i-tau-1) * rewards[i]
-
+                        # print(len(rewards), i%(self.n + 1))
+                        G += (self.MDP.gamma**(i-tau-1) * rewards[i%(self.n + 1)])
+                    # print(lower, upper, G, rewards)
                     if t + self.n < T:
-                        G += self.MDP.gamma**self.n * self.qhat(states[tau+self.n], actions[tau+self.n])
-
-                    self.w[self.A.index(a)] += (self.alpha/(epnum+1))*(G - self.qhat(states[tau], actions[tau])) * self.x(states[tau])
-
+                        idx = (tau+self.n)%(self.n + 1)
+                        G += self.MDP.gamma**self.n * self.qhat(states[idx], actions[idx])
+                    idx = tau%(self.n + 1)
+                    self.w[self.A.index(actions[idx])] += self.alpha*(G - self.qhat(states[idx], actions[idx])) * self.x(states[idx])
+                    w = []
+                    for a in self.A:
+                        w.append(self.w[self.A.index(a)].dot(self.x(states[idx])))
+                    print(t,T,tau,np.array(w))
                 if tau == T-1:
                     break
             
