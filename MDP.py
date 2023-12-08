@@ -50,7 +50,8 @@ class MountainCar(EpisodicContinuousMDP):
         self.t = 0
 
     def initial_state(self):
-        return np.array([-0.5, 0])
+        pos = np.random.uniform(-0.6, -0.4)
+        return np.array([pos, 0])
 
     def next_state(self, a):
         if self.s[0] == self.x_upper:
@@ -71,10 +72,10 @@ class MountainCar(EpisodicContinuousMDP):
         self.t += 1
 
     def is_terminal(self):
-        return (self.s[0] == self.x_upper) or (self.t > 500)
+        return (self.s[0] >= self.x_upper-0.1) or (self.t > 200)
 
     def reward(self):
-        return (self.s[0] == self.x_upper) - 1
+        return (self.s[0] >= self.x_upper-0.1) - 1
 
     def run_episode(self, policy):
         G = 0
