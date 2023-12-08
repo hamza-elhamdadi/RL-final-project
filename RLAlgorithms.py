@@ -59,7 +59,7 @@ class SARSAAlg:
         return np.random.choice(self.A, p=probs)
 
 class ESGNStepSARSA(SARSAAlg):
-    def __init__(self, MDP, M, n, alpha=0.001, epsilon=0.99999, approach='epsilon-greedy'):
+    def __init__(self, MDP, M, n, alpha=0.01, epsilon=0.99999, approach='softmax'):
         super().__init__(MDP, M, alpha, epsilon, approach)
         self.n = n
 
