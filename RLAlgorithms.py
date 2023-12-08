@@ -50,11 +50,11 @@ class SARSAAlg:
             q.append(self.w[a_idx].dot(self.x(s)))
         q = np.array(q)
 
-        # if self.approach == 'epsilon-greedy':            
-        probs += self.epsilon / A_card
-        probs[np.argmax(q)] += (1 - self.epsilon) 
-        # else:
-        #     probs = softmax(q)
+        if self.approach == 'epsilon-greedy':            
+            probs += self.epsilon / A_card
+            probs[np.argmax(q)] += (1 - self.epsilon) 
+        else:
+            probs = softmax(q)
 
         return np.random.choice(self.A, p=probs)
 
@@ -145,8 +145,8 @@ class TrueOnlineSARSALambda(SARSAAlg):
 
     def run(self):
         returns = []
-        for epnum in range(self.num_episodes):
-        # for epnum in tqdm(range(self.num_episodes)):
+        # for epnum in range(self.num_episodes):
+        for epnum in tqdm(range(self.num_episodes)):
             alpha = self.alpha
 
             self.MDP.reset()
