@@ -4,11 +4,12 @@ from scipy.special import softmax
 
 class SARSAAlg:
     def __init__(self, MDP, M, alpha=0.001, epsilon=0.99999, approach='epsilon-greedy'):
-        self.base_alpha   = alpha
-        self.alpha        = 0.99999 if self.base_alpha == 'decay' else alpha
-        self.base_epsilon = epsilon
-        self.epsilon      = epsilon
-        self.approach     = approach
+        self.decay_alpha_start = 0.01
+        self.base_alpha        = alpha
+        self.alpha             = self.decay_alpha_start if self.base_alpha == 'decay' else alpha
+        self.base_epsilon      = epsilon
+        self.epsilon           = epsilon
+        self.approach          = approach
 
         self.MDP = MDP
         self.A = self.MDP.A
@@ -21,7 +22,7 @@ class SARSAAlg:
     def reset(self):
         self.w = np.zeros((len(self.A), 1 + len(self.MDP.s) * self.M ))
         self.epsilon = self.base_epsilon
-        self.alpha = 0.99999 if self.base_alpha == 'decay' else self.base_alpha
+        self.alpha = self.decay_alpha_start if self.base_alpha == 'decay' else self.base_alpha
 
     def x(self, s):
         s = self.MDP.get_normalized_state(s)
@@ -49,11 +50,11 @@ class SARSAAlg:
             q.append(self.w[a_idx].dot(self.x(s)))
         q = np.array(q)
 
-        if self.approach == 'epsilon-greedy':            
-            probs += self.epsilon / A_card
-            probs[np.argmax(q)] += (1 - self.epsilon) 
-        else:
-            probs = softmax(q)
+        # if self.approach == 'epsilon-greedy':            
+        probs += self.epsilon / A_card
+        probs[np.argmax(q)] += (1 - self.epsilon) 
+        # else:
+        #     probs = softmax(q)
 
         return np.random.choice(self.A, p=probs)
 
@@ -73,10 +74,11 @@ class ESGNStepSARSA(SARSAAlg):
 
             # intialize and store s_0
             self.MDP.reset()
-            states.append(self.MDP.s)
+            s = self.MDP.s
+            states.append(s.copy())
 
             # select and store a_0, epsilon greedy/softmax
-            a = self.next_action(self.MDP.s)
+            a = self.next_action(states[-1])
             # print(a)
             actions.append(a)
 
@@ -91,7 +93,8 @@ class ESGNStepSARSA(SARSAAlg):
                     # observe  and store r_t+1
                     rewards.append(self.MDP.reward())
                     # observe and store s_t+1
-                    states.append(self.MDP.s)
+                    sp = self.MDP.s
+                    states.append(sp.copy())
                     # is s_t+1 is terminal
                     if self.MDP.is_terminal():
                         T = t + 1
@@ -111,21 +114,28 @@ class ESGNStepSARSA(SARSAAlg):
                     # print(lower, upper, G, rewards)
                     if tau + self.n < T:
                         G += self.MDP.gamma**self.n * self.qhat(states[tau+self.n], actions[tau+self.n])
-                    self.w[self.A.index(actions[tau])] += self.alpha*(G - self.qhat(states[tau], actions[tau])) * self.x(states[tau])
+                    # print(self.n, tau, lower, upper, G)
+                    update = self.alpha*(G - self.qhat(states[tau], actions[tau])) * self.x(states[tau])
+                    self.w[self.A.index(actions[tau])] += update
                     
                 if tau == T-1:
                     break
             
                 t += 1
-            
+
             self.MDP.reset()
+
             G = 0
             while not self.MDP.is_terminal():
                 G += self.MDP.reward()
                 a = self.next_action(self.MDP.s)
                 self.MDP.next_state(a)
             Gs.append(G)
-            # print(f'episode: {epnum}, G =',G)
+            
+            # if self.epsilon > 0.005:
+            #     if epnum % 50 == 0 and epnum > 0:
+            #         self.epsilon *= self.epsilon
+            #         self.epsilon = max(self.epsilon, 0.0001)
         return Gs
 
 class TrueOnlineSARSALambda(SARSAAlg):
@@ -135,7 +145,8 @@ class TrueOnlineSARSALambda(SARSAAlg):
 
     def run(self):
         returns = []
-        for epnum in tqdm(range(self.num_episodes)):
+        for epnum in range(self.num_episodes):
+        # for epnum in tqdm(range(self.num_episodes)):
             alpha = self.alpha
 
             self.MDP.reset()
@@ -185,21 +196,18 @@ class TrueOnlineSARSALambda(SARSAAlg):
                 G += self.MDP.reward()
                 a = self.next_action(self.MDP.s)
                 self.MDP.next_state(a)
-            
+            returns.append(G)
+
             if self.epsilon > 0.005:
                 if epnum % 50 == 0 and epnum > 0:
                     self.epsilon *= self.epsilon
                     self.epsilon = max(self.epsilon, 0.0001)
             
             if self.base_alpha == 'decay':
-                if self.alpha > 0.005:
-                    if epnum % 50 == 0 and epnum > 0:
+                if self.alpha > 0.000:
+                    if epnum % 100 == 0 and epnum > 0:
                         self.alpha *= self.alpha
                         self.alpha = max(self.alpha, 0.0001)
-                    
-
-            # print(f'episode: {epnum}, G =',G)
-            returns.append(G)
 
         return returns
 
