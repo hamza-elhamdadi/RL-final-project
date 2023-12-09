@@ -1,4 +1,4 @@
-from MDP import MountainCar, CartPole
+from MDP import CartPole
 from RLAlgorithms import ESGNStepSARSA, TrueOnlineSARSALambda
 import matplotlib.pyplot as plt
 import numpy as np

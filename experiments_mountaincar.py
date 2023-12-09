@@ -19,6 +19,7 @@ hp_settings = [
 for h in hp_settings:
     M, tdr, alpha = h
 
+    print(f'M-{M}-lambda-{tdr}-alpha-{alpha}')
     alg = TrueOnlineSARSALambda(mc, M=M, tdr=tdr, alpha=alpha, approach='epsilon-greedy')
     Gs = np.zeros(alg.num_episodes)
 
@@ -42,6 +43,7 @@ hp_settings = [
 ]
 for h in hp_settings:
     M, n, alpha, epsilon = h
+    print(f'M-{M}-n-{n}-alpha-{alpha}')
     alg = ESGNStepSARSA(mc, M=M, n=n, alpha=alpha, epsilon=epsilon, approach='epsilon-greedy')
     Gs = np.zeros(alg.num_episodes)
 
